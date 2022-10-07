@@ -1,0 +1,6 @@
+{
+   "age":"int:rand(1, 90)",
+   "date":"timestamp:",
+   "name":"str:rand",
+   "type":"['client', 'partner', 'government']"
+}
