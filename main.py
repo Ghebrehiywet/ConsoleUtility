@@ -1,16 +1,22 @@
 import argparse
+import ast
 import glob
 import json
+import logging
 import os
 import pprint
 import shutil
 import uuid
 import random
+import time
 from json import JSONDecodeError
 from os import getcwd
 from os.path import exists
 from typing import Optional, Sequence
 import configparser
+
+DATA_DIR = './data/'
+DEFAULT_INI = DATA_DIR + 'default.ini'
 
 
 def rand_generator(_type: type) -> str:
@@ -20,47 +26,17 @@ def rand_generator(_type: type) -> str:
         return str(uuid.uuid4())
 
 
-def rand_int(_from: int, _to: int) -> str:
+def rand_within_range(_from: int, _to: int) -> str:
     return str(random.randint(_from, _to))
 
 
-def rand_from_list(_input: list) -> list:
+def rand_choice_from_list(_input: list) -> list:
     return random.choice(_input)
 
 
-def default():
-    # print(rand_generator(str))
-    # print(rand_generator(int))
-    print(rand_from_list(['client', 'partner', 'government']))
-    print(rand_from_list([0, 9, 10, 4]))
-    # instantiate
-    config = configparser.ConfigParser()
-
-    # parse existing file
-    config.read('default.ini')
-    # print(config['DEFAULT']['path'])  # -> "/path/name/"
-
-    # read values from a section
-    string_val = config.get('section_a', 'string_val')
-    bool_val = config.getboolean('section_a', 'bool_val')
-    int_val = config.getint('section_a', 'int_val')
-    float_val = config.getfloat('section_a', 'pi_val')
-
-    # update existing value
-    config.set('section_a', 'string_val', 'world')
-
-    # add a new section and some values
-    config.add_section('section_b')
-    config.set('section_b', 'meal_val', 'spam')
-    config.set('section_b', 'not_found_val', '404')
-
-    # save to a file
-    with open('test_update.ini', 'w') as configfile:
-        config.write(configfile)
-
-
-def schema_loader(data_schema):
+def schema_deserialization(data_schema):
     # load JSON schema
+    logging.info("Data schema parsing STARTED.")
     try:
         is_schema_from_file = exists(data_schema)
         if is_schema_from_file:
@@ -68,65 +44,75 @@ def schema_loader(data_schema):
                 data_schema = json.load(f)
         else:
             data_schema = json.loads(data_schema)
-    except JSONDecodeError:
-        print("json.decoder.JSONDecodeError: Unterminated string starting at: line 1 column 95 (char 94)")
-    except:
-        print("Exception")
-    finally:
-        print("---" * 50)
-        # pprint.pprint(data_schema)
+    except JSONDecodeError as err:
+        logging.error(f"Data schema parse error, {err=}")
+        exit()
+    except BaseException as err:
+        logging.error(f"Data schema unknown error, {err=}, {type(err)=}")
+        exit()
+    logging.info("Data schema parsing FINISHED.")
+    return data_schema
 
 
 def argument_parser(argv):
+    try:
+        logging.info("Default values loading has STARTED.")
+
+        config = configparser.ConfigParser()
+        # parse existing file to get default values
+        config.read(DEFAULT_INI)
+        # read values from section `console_utility_defaults`
+        files_count = config.getint('console_utility_defaults', 'files_count')
+        data_lines = config.getint('console_utility_defaults', 'data_lines')
+        multiprocessing = config.getint('console_utility_defaults', 'multiprocessing')
+
+        logging.info("Default values loading has FINISHED.")
+    except configparser.ParsingError as err:
+        logging.error(f'Default value parsing error. {err=}')
+        exit()
+    except ValueError as err:
+        logging.error(f'Invalid default value error. {err=}')
+        exit()
+    except BaseException as err:
+        logging.error(f"Unexpected error {err=}, {type(err)=}")
+        exit()
+
+    logging.info("Argument parsing has STARTED.")
     parser = argparse.ArgumentParser(
         description="Imagine that you have a data pipeline and you need some test data to check "
                     "correctness of data transformations and validations on this data pipeline. "
                     "You need to generate different input data. "
-                    "  Format - only JSON.")
+                    "  Format - only JSON.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
-    parser.add_argument('path_to_save_files', type=str, help="Enter the path where all files need to save")
-    parser.add_argument('--files_count', type=int, help="Enter the number of json files to generate")
-    parser.add_argument('--file_name', type=str, help="Enter base file_name")
-    parser.add_argument('--file_prefix', type=str, help="Enter the prefix for file name to use if more than 1 file "
-                                                        "needs to be generated")
-    parser.add_argument('--data_schema', type=str, help="Enter the json input schema")
+    parser.add_argument('path_to_save_files', type=str, help="Path where all files need to save")
+    parser.add_argument('--files_count', type=int, help="The number of json files to generate", default=files_count)
+    parser.add_argument('--file_name', type=str, help="Base file_name of the files to generate", required=True)
+    parser.add_argument('--file_prefix', type=str, help="Prefix for file name to use if more than 1 file "
+                                                        "needs to be generated", choices=['count', 'random', 'uuid'])
+    parser.add_argument('--data_schema', type=str, help="The json input schema (it can be a path to json file "
+                                                        "with a schema OR the json schema itself", required=True)
 
-    parser.add_argument('--data_lines', type=int, help="Enter number of lines for each file.", default=1000)
+    parser.add_argument('--data_lines', type=int, help="Number of lines for each file.", default=data_lines)
     parser.add_argument('--clear_path', help="Flag to delete all existing files that match file_name.",
                         action='store_true')
-    parser.add_argument('--multiprocessing', type=int, metavar='', help="Enter the number of processes used to create "
-                                                                        "files.", default=1)
-    # parser.add_argument('-o', '--operation', type=str, metavar='', help="Operation", default="add",
-    #                     choices=['add', 'subtract', 'multiply', 'division'])
-    # parser.add_argument('-c', '--count', action='count', help='Count')
-    # parser.add_argument('--log', action='append', help='Appended logs')
-    # # sub-commands
-    # subparsers = parser.add_subparsers(dest='command')
-    # subparsers.required = True
-    #
-    # status_parser = subparsers.add_parser('status', help='show status')
-    # status_parser.add_argument('--force', action='store_true')
-    #
-    # checkout_parser = subparsers.add_parser('checkout', help='show checkout')
-    # checkout_parser.add_argument('--force', action='store_true')
-    #
-    # group = parser.add_mutually_exclusive_group()
-    # group.add_argument('-q', '--quite', action='store_true', help='Print quite')
-    # group.add_argument('-v', '--verbose', action='store_true', help='Print verbose')
+    parser.add_argument('--multiprocessing', type=int, metavar='', help="The number of processes used to create files.",
+                        default=multiprocessing)
+    # parser.add_argument('--file_logging', help="Flag to choose file logging option (default is to the console).",
+    #                     action='store_true')
     args = parser.parse_args(argv)
-    # pprint.pprint(vars(args))
+    logging.info("Argument parsing FINISHED.")
 
     return args
 
 
 def destination_path(path_to_save_files: str) -> str:
     check_folder = os.path.isdir(path_to_save_files)
-    print(check_folder)
     # If folder doesn't exist, then create it.
     if not check_folder:
         check_file = os.path.isfile(path_to_save_files)
         if check_file:
-            print("ERROR: ")
+            logging.error("There is a file with the same name (duplication occurred).")
             exit()
         os.makedirs(path_to_save_files)
 
@@ -136,7 +122,9 @@ def destination_path(path_to_save_files: str) -> str:
 
 
 def get_output_filenames(file_name: str, prefix: str, files_count: int):
-    prefixes = []
+    logging.info("Generating an output file/s has STARTED.")
+
+    output_filenames = []
     for count in range(0, files_count):
         if prefix == 'count':
             output_file = file_name + '-' + str(count) + '.json'
@@ -144,52 +132,129 @@ def get_output_filenames(file_name: str, prefix: str, files_count: int):
             output_file = file_name + '-' + str(random.randint(0, 10000)) + '.json'
         elif prefix == 'uuid':
             output_file = file_name + '-' + str(uuid.uuid4()) + '.json'
-        prefixes.append(output_file)
-        with open(output_file, 'w') as f:
-            f.close()
-    print(prefixes)
-    return prefixes
+        output_filenames.append(output_file)
+    logging.info("Generating an output file/s FINISHED.")
+
+    return output_filenames
 
 
 def clear_path(args, destination_folder):
+    logging.info("Removing/clearing an existing file/s has STARTED.")
     if args.clear_path:
         for f in glob.glob(destination_folder + '/' + args.file_name + '*'):
             os.remove(f)
-        pass
+    logging.info("Removing/clearing an existing file/s FINISHED.")
 
 
-def colsole_display():
-    pass
+def colsole_display(output_dict):
+    pprint.pprint(output_dict)
 
 
-def write_to_file():
-    pass
+def write_to_file(filename: str, output_dict: dict):
+    with open(filename, 'w') as f:
+        f.write(json.dumps(output_dict))
+
+
+def rand_value(_type):
+    if _type == "int":
+        return random.randint(0, 10000)
+    elif _type == "str":
+        return str(uuid.uuid4())
+    else:
+        logging.error(f"rand only works for int and str data types. [{_type}]")
+        exit()
+
+
+def empty_value(_type, _value):
+    if _type == "int":
+        return None
+    elif _type == "str":
+        return ""
+    elif _type == "timestamp":
+        if len(_value) > 0:
+            logging.warning(f"timestamp does not support any values and it will be ignored. [{_value}]")
+        return time.time()
+    else:
+        logging.error(f"Invalid type (int, str and timestamp are the only supported data types). [{_type}]")
+        exit()
+
+
+def value_operation(key: str, value: str):
+
+    _output = ""
+    value_splited = value.split(':')
+    if len(value_splited) == 2:
+        _type, _value = value_splited[0], value_splited[1]
+        if _type in ('timestamp', 'str', 'int'):
+            if len(_value.strip()) == 0 or _type == 'timestamp':
+                _output = empty_value(_type, _value)
+            elif _value == 'rand':
+                _output = rand_value(_type)
+            elif "rand(" in _value and _type == 'int':
+                rand_range_values = _value.strip().replace('rand(', '').replace(')', '').split(',')
+                if len(rand_range_values) == 2 and rand_range_values[0].strip().isdigit() \
+                        and rand_range_values[1].strip().isdigit():
+                    _output = rand_within_range(int(rand_range_values[0]), int(rand_range_values[1]))
+                else:
+                    logging.error(f"The provided data schema has an invalid format. [{_value}]")
+                    exit()
+            elif "[" in _value and "]" in _value:
+                choices = ast.literal_eval(_value)
+                _output = rand_choice_from_list(choices)
+            elif 'rand' not in _value:
+                if (_value.isdigit() and _type == 'int') or (not _value.isdigit() and _type == 'str'):
+                    _output = _value
+                else:
+                    logging.error(f"Invalid data type (int, str and timestamp are the only supported data "
+                                  f"types) [{key}]")
+            else:
+                logging.error(f"The provided data schema has an invalid format. [{key}]")
+                exit()
+        else:
+            logging.error(
+                f"Invalid data type (int, str and timestamp are the only supported data types). [{key}]")
+            exit()
+    elif "[" in value and "]" in value:
+        choices = ast.literal_eval(value)
+        _output = rand_choice_from_list(choices)
+    else:
+        logging.error(f"Invalid data schema format. [{key}]")
+        exit()
+
+    return _output
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    # default()
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', encoding='utf-8', level=logging.INFO)
+    #     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', filename='data/log_file.log',
+    #                         encoding='utf-8', level=logging.INFO)
+
     args = argument_parser(argv)
-    destination_folder = destination_path(args.path_to_save_files)
-    clear_path(args, destination_folder)
+
+    schema_dict = schema_deserialization(args.data_schema)
+
+    output_dict = {}
+    logging.info("Generating test data has STARTED.")
+    for key in schema_dict:
+        value = value_operation(key, schema_dict[key])
+        output_dict[key] = value
+    logging.info("Generating test data FINISHED.")
 
     if args.files_count == 0:
-        colsole_display()
+        colsole_display(output_dict)
     elif args.files_count > 0:
-        write_to_file()
+        logging.info("Writing an output to a file has STARTED.")
+
+        destination_folder = destination_path(args.path_to_save_files)
+        clear_path(args, destination_folder)
+        output_filenames = get_output_filenames(args.file_name, args.file_prefix, args.files_count)
+        for filename in output_filenames:
+            write_to_file(destination_folder + filename, output_dict)
+
+        logging.info("Writing an output to a file FINISHED.")
     else:
-        print("ERROR: ")
+        logging.error("Invalid file count. count must be greater than 0")
         exit()
-        
-    schema_loader(args.data_schema)
-    get_output_filenames(args.file_name, args.file_prefix, args.files_count)
-    # if args.operation == 'add':
-    #     print('Sum=' + str(args.number1 + args.number2))
-    # elif args.operation == 'subtract':
-    #     print('Difference=' + str(args.number1 - args.number2))
-    # elif args.operation == 'multiply':
-    #     print('Product=' + str(args.number1 * args.number2))
-    # else:
-    #     print("unknown operation")
 
 
 if __name__ == '__main__':
