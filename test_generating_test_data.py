@@ -1,5 +1,5 @@
 import pytest
-from main import generating_test_data
+from console_utility import generating_test_data
 
 
 @pytest.mark.parametrize("key, value, result_len", [

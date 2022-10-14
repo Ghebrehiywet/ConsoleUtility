@@ -1,5 +1,5 @@
 import pytest
-from main import args_main, argument_parser
+from console_utility import args_main, Parser
 
 
 @pytest.mark.parametrize("path_to_save_files, files_count, file_name, file_prefix, multiprocessing, data_schema, "
@@ -12,7 +12,8 @@ from main import args_main, argument_parser
                          ])
 def test_load_argument_parser(path_to_save_files, files_count, file_name, file_prefix, multiprocessing, data_schema,
                               clear_path, data_lines):
-    parser = argument_parser([path_to_save_files, "--files_count=" + files_count, "--file_name=" + file_name,
+    parserObj = Parser()
+    parser = parserObj.argument_parser([path_to_save_files, "--files_count=" + files_count, "--file_name=" + file_name,
                               "--file_prefix=" + file_prefix, "--multiprocessing=" + multiprocessing,
                               "--data_schema=" + data_schema, "--clear_path", "--data_lines=" + data_lines])
     assert parser.path_to_save_files == path_to_save_files
