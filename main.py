@@ -34,7 +34,7 @@ def rand_choice_from_list(_input: list) -> list:
     return random.choice(_input)
 
 
-def schema_deserialization(data_schema):
+def schema_deserialization(data_schema: str) -> dict:
     # load JSON schema
     logging.info("Data schema parsing STARTED.")
     try:
@@ -44,12 +44,12 @@ def schema_deserialization(data_schema):
                 data_schema = json.load(f)
         else:
             data_schema = json.loads(data_schema)
-    except JSONDecodeError as err:
-        logging.error(f"Data schema parse error, {err=}")
-        exit()
-    except BaseException as err:
-        logging.error(f"Data schema unknown error, {err=}, {type(err)=}")
-        exit()
+    except JSONDecodeError as er:
+        logging.error(f"Data schema parse error, {er=}")
+        exit(1)
+    except BaseException as er:
+        logging.error(f"Data schema unknown error, {er=}, {type(er)=}")
+        exit(1)
     logging.info("Data schema parsing FINISHED.")
     return data_schema
 
@@ -67,15 +67,15 @@ def argument_parser(argv):
         multiprocessing = config.getint('console_utility_defaults', 'multiprocessing')
 
         logging.info("Default values loading has FINISHED.")
-    except configparser.ParsingError as err:
-        logging.error(f'Default value parsing error. {err=}')
-        exit()
-    except ValueError as err:
-        logging.error(f'Invalid default value error. {err=}')
-        exit()
-    except BaseException as err:
-        logging.error(f"Unexpected error {err=}, {type(err)=}")
-        exit()
+    except configparser.ParsingError as er:
+        logging.error(f'Default value parsing error. {er=}')
+        exit(1)
+    except ValueError as er:
+        logging.error(f'Invalid default value error. {er=}')
+        exit(1)
+    except BaseException as er:
+        logging.error(f"Unexpected error {er=}, {type(er)=}")
+        exit(1)
 
     logging.info("Argument parsing has STARTED.")
     parser = argparse.ArgumentParser(
@@ -113,7 +113,7 @@ def destination_path(path_to_save_files: str) -> str:
         check_file = os.path.isfile(path_to_save_files)
         if check_file:
             logging.error("There is a file with the same name (duplication occurred).")
-            exit()
+            exit(1)
         os.makedirs(path_to_save_files)
 
     if path_to_save_files == '.':
@@ -138,21 +138,22 @@ def get_output_filenames(file_name: str, prefix: str, files_count: int):
     return output_filenames
 
 
-def clear_path(args, destination_folder):
+def clear_path(file_name, destination_folder) -> bool:
     logging.info("Removing/clearing an existing file/s has STARTED.")
-    if args.clear_path:
-        for f in glob.glob(destination_folder + '/' + args.file_name + '*'):
-            os.remove(f)
+    for f in glob.glob(destination_folder + '/' + file_name + '*'):
+        os.remove(f)
     logging.info("Removing/clearing an existing file/s FINISHED.")
+    return True
 
 
 def colsole_display(output_dict):
     pprint.pprint(output_dict)
 
 
-def write_to_file(filename: str, output_dict: dict):
+def write_to_file(filename: str, output_dict: dict) ->bool:
     with open(filename, 'w') as f:
         f.write(json.dumps(output_dict))
+    return True
 
 
 def rand_value(_type):
@@ -162,7 +163,7 @@ def rand_value(_type):
         return str(uuid.uuid4())
     else:
         logging.error(f"rand only works for int and str data types. [{_type}]")
-        exit()
+        exit(1)
 
 
 def empty_value(_type, _value):
@@ -176,10 +177,10 @@ def empty_value(_type, _value):
         return time.time()
     else:
         logging.error(f"Invalid type (int, str and timestamp are the only supported data types). [{_type}]")
-        exit()
+        exit(1)
 
 
-def value_operation(key: str, value: str):
+def generating_test_data(key: str, value: str):
 
     _output = ""
     value_splited = value.split(':')
@@ -197,34 +198,38 @@ def value_operation(key: str, value: str):
                     _output = rand_within_range(int(rand_range_values[0]), int(rand_range_values[1]))
                 else:
                     logging.error(f"The provided data schema has an invalid format. [{_value}]")
-                    exit()
+                    exit(1)
             elif "[" in _value and "]" in _value:
                 choices = ast.literal_eval(_value)
                 _output = rand_choice_from_list(choices)
+                if type(_output).__name__ != _type:
+                    logging.error(f"There is a type mismatch in [{key}] between [{_type}] and {_value}")
+                    exit(1)
             elif 'rand' not in _value:
                 if (_value.isdigit() and _type == 'int') or (not _value.isdigit() and _type == 'str'):
                     _output = _value
                 else:
                     logging.error(f"Invalid data type (int, str and timestamp are the only supported data "
                                   f"types) [{key}]")
+                    exit(1)
             else:
                 logging.error(f"The provided data schema has an invalid format. [{key}]")
-                exit()
+                exit(1)
         else:
             logging.error(
                 f"Invalid data type (int, str and timestamp are the only supported data types). [{key}]")
-            exit()
+            exit(1)
     elif "[" in value and "]" in value:
         choices = ast.literal_eval(value)
         _output = rand_choice_from_list(choices)
     else:
         logging.error(f"Invalid data schema format. [{key}]")
-        exit()
+        exit(1)
 
     return _output
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def args_main(argv: Optional[Sequence[str]] = None) -> dict:
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', encoding='utf-8', level=logging.INFO)
     #     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', filename='data/log_file.log',
     #                         encoding='utf-8', level=logging.INFO)
@@ -236,7 +241,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     output_dict = {}
     logging.info("Generating test data has STARTED.")
     for key in schema_dict:
-        value = value_operation(key, schema_dict[key])
+        value = generating_test_data(key, schema_dict[key])
         output_dict[key] = value
     logging.info("Generating test data FINISHED.")
 
@@ -246,7 +251,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         logging.info("Writing an output to a file has STARTED.")
 
         destination_folder = destination_path(args.path_to_save_files)
-        clear_path(args, destination_folder)
+        if args.clear_path:
+            clear_path(args.file_name, destination_folder)
         output_filenames = get_output_filenames(args.file_name, args.file_prefix, args.files_count)
         for filename in output_filenames:
             write_to_file(destination_folder + filename, output_dict)
@@ -254,8 +260,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         logging.info("Writing an output to a file FINISHED.")
     else:
         logging.error("Invalid file count. count must be greater than 0")
-        exit()
+        exit(1)
+    return output_dict
 
 
 if __name__ == '__main__':
-    exit(main())
+    try:
+        args_main()
+    except BaseException as er:
+        logging.error(f"{er=}, {type(er)=}")
