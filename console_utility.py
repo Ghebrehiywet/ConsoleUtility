@@ -3,6 +3,7 @@ import ast
 import glob
 import json
 import logging
+import multiprocessing
 import os
 import pprint
 import shutil
@@ -85,7 +86,7 @@ class Parser:
             # read values from section `console_utility_defaults`
             files_count = config.getint('console_utility_defaults', 'files_count')
             data_lines = config.getint('console_utility_defaults', 'data_lines')
-            multiprocessing = config.getint('console_utility_defaults', 'multiprocessing')
+            _multiprocessing = config.getint('console_utility_defaults', 'multiprocessing')
 
             logging.info("Default values loading has FINISHED.")
         except configparser.ParsingError as er:
@@ -120,7 +121,7 @@ class Parser:
                             action='store_true')
         parser.add_argument('--multiprocessing', type=int, metavar='',
                             help="The number of processes used to create files.",
-                            default=multiprocessing)
+                            default=_multiprocessing)
         # parser.add_argument('--file_logging', help="Flag to choose file logging option (default is to the console).",
         #                     action='store_true')
         args = parser.parse_args(argv)
@@ -161,7 +162,7 @@ def get_output_filenames(file_name: str, prefix: str, files_count: int):
     return output_filenames
 
 
-def clear_path(file_name, destination_folder) -> bool:
+def clear_existing_files(file_name, destination_folder) -> bool:
     logging.info("Removing/clearing an existing file/s has STARTED.")
     for f in glob.glob(destination_folder + '/' + file_name + '*'):
         os.remove(f)
@@ -176,9 +177,53 @@ class Output:
     def colsole_display(self):
         pprint.pprint(self.output_dict)
 
-    def write_to_file(self, filename: str) -> bool:
+    def dump_to_file(self, filename: str) -> bool:
+        time.sleep(0.1)
         with open(filename, 'w') as f:
             f.write(json.dumps(self.output_dict))
+        return True
+
+    def write_to_file(self, file_name, file_prefix, files_count, _multiprocessing, path_to_save_files,
+                      clear_path) -> bool:
+        logging.info("Writing an output to a file has STARTED.")
+
+        destination_folder = destination_path(path_to_save_files)
+        if clear_path:
+            clear_existing_files(file_name, destination_folder)
+        output_filenames = get_output_filenames(os.path.join(destination_folder, file_name), file_prefix, files_count)
+
+        self.multiprocess_writing_to_file(_multiprocessing, output_filenames)
+        self.sequencial_writing_to_file(output_filenames)
+
+        logging.info("Writing an output to a file FINISHED.")
+
+    def sequencial_writing_to_file(self, output_filenames):
+        st2 = time.time()
+        for filename in output_filenames:
+            self.dump_to_file(filename)
+        end2 = time.time()
+        logging.info(f"Finished in {end2 - st2} seconds")
+        return True
+
+    def multiprocess_writing_to_file(self, _multiprocessing, output_filenames):
+        if _multiprocessing < 0:
+            logging.error("Invalid multiprocessor count. count must be greater than 0")
+            exit(1)
+
+        if _multiprocessing > os.cpu_count():
+            _multiprocessing = os.cpu_count()
+
+        st2 = time.time()
+
+        # Multiprocessing
+        # files_count = args.files_count
+        # chunk_size = files_count // _multiprocessing
+        # slices = list(chunks(output_filenames, chunk_size))
+        with multiprocessing.Pool(processes=_multiprocessing) as pool:
+            pool.map(self.dump_to_file, output_filenames)
+
+        end2 = time.time()
+        logging.info(f"Finished in {end2 - st2} seconds")
         return True
 
 
@@ -231,6 +276,12 @@ def generating_test_data(key: str, value: str):
     return _output
 
 
+# split a list into evenly sized chunks
+def chunks(_list, size):
+    for i in range(0, len(_list), size):
+        yield _list[i:i + size]
+
+
 def args_main(argv: Optional[Sequence[str]] = None) -> dict:
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', encoding='utf-8', level=logging.INFO)
     #     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', filename='data/log_file.log',
@@ -252,16 +303,8 @@ def args_main(argv: Optional[Sequence[str]] = None) -> dict:
     if args.files_count == 0:
         output.colsole_display()
     elif args.files_count > 0:
-        logging.info("Writing an output to a file has STARTED.")
-
-        destination_folder = destination_path(args.path_to_save_files)
-        if args.clear_path:
-            clear_path(args.file_name, destination_folder)
-        output_filenames = get_output_filenames(args.file_name, args.file_prefix, args.files_count)
-        for filename in output_filenames:
-            output.write_to_file(destination_folder + filename)
-
-        logging.info("Writing an output to a file FINISHED.")
+        output.write_to_file(args.file_name, args.file_prefix, args.files_count, args.multiprocessing,
+                             args.path_to_save_files, args.clear_path)
     else:
         logging.error("Invalid file count. count must be greater than 0")
         exit(1)
@@ -269,7 +312,4 @@ def args_main(argv: Optional[Sequence[str]] = None) -> dict:
 
 
 if __name__ == '__main__':
-    try:
-        args_main()
-    except BaseException as er:
-        logging.error(f"{er=}, {type(er)=}")
+    args_main()

@@ -8,7 +8,7 @@ from os import path, getcwd
 import pytest
 from parameterized import parameterized
 
-from console_utility import destination_path, clear_path
+from console_utility import destination_path, clear_existing_files
 import console_utility
 
 
@@ -28,9 +28,8 @@ class TestFilesAndDirs(unittest.TestCase):
     def test_write_to_file(self, file_name, sample_output_dict):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
-        f = open(file_path, 'w')
         output = console_utility.Output(sample_output_dict)
-        result = output.write_to_file(file_path)
+        result = output.dump_to_file(file_path)
         assert result
 
         # Reopen the file and check if what we read back is the same
@@ -62,7 +61,7 @@ class TestFilesAndDirs(unittest.TestCase):
         dir_list_before_clearing = [f for f in dir_list_before_clearing if
                                     os.path.isfile(destination_folder + '/' + f) and f.startswith(file_name)]
 
-        result = clear_path(file_name, destination_folder)
+        result = clear_existing_files(file_name, destination_folder)
         assert result
 
         dir_list_after_clearing = os.listdir(destination_folder)
@@ -76,11 +75,12 @@ class TestFilesAndDirs(unittest.TestCase):
     ])
     def test_clear_files_temp_folder(self, file_name):
         # Create three file in the temporary directory
+        print(self.test_dir)
         file_path = path.join(self.test_dir, file_name)
         for i in range(1, 4):
             f = open(file_path + str(i), 'w')
 
-        result = clear_path(file_name, self.test_dir)
+        result = clear_existing_files(file_name, self.test_dir)
         assert result
 
         dir_list_after_clearing = os.listdir(self.test_dir)
