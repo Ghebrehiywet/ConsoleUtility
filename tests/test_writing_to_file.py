@@ -9,8 +9,8 @@ from os import path, getcwd
 import pytest
 from parameterized import parameterized
 
-from console_utility import destination_path, clear_existing_files
-import console_utility
+from console_utility_main import destination_path, clear_existing_files
+import console_utility_main
 
 
 class TestFilesAndDirs(unittest.TestCase):
@@ -34,7 +34,7 @@ class TestFilesAndDirs(unittest.TestCase):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
 
-        output = console_utility.Output(sample_output_dict)
+        output = console_utility_main.Output(sample_output_dict)
         output.write_to_file(file_path, "count", 6, 4, self.test_dir, True)
         result = output.dump_to_file(file_path)
         assert result
@@ -56,8 +56,8 @@ class TestFilesAndDirs(unittest.TestCase):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
 
-        output = console_utility.Output(sample_output_dict)
-        output_filenames = console_utility.get_output_filenames(file_path, "count", 1)
+        output = console_utility_main.Output(sample_output_dict)
+        output_filenames = console_utility_main.get_output_filenames(file_path, "count", 1)
         result = output.sequencial_writing_to_file(output_filenames)
         assert result
 
@@ -73,8 +73,8 @@ class TestFilesAndDirs(unittest.TestCase):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
 
-        output = console_utility.Output(sample_output_dict)
-        output_filenames = console_utility.get_output_filenames(file_path, "count", 1)
+        output = console_utility_main.Output(sample_output_dict)
+        output_filenames = console_utility_main.get_output_filenames(file_path, "count", 1)
         result = output.multiprocess_writing_to_file(4, output_filenames)
         assert result
 
@@ -96,8 +96,8 @@ class TestFilesAndDirs(unittest.TestCase):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
 
-        output = console_utility.Output(sample_output_dict)
-        output_filenames = console_utility.get_output_filenames(file_path, "count", 20)
+        output = console_utility_main.Output(sample_output_dict)
+        output_filenames = console_utility_main.get_output_filenames(file_path, "count", 20)
 
         st1 = time.time()
         output.sequencial_writing_to_file(output_filenames)

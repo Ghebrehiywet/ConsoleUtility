@@ -1,10 +1,10 @@
 import json
 import pytest
-from console_utility import Parser
+from console_utility_main import Parser
 
 
 @pytest.mark.parametrize("json_input, parsed_json", [
-    ('./data/schema.json', '{"date":"timestamp:", "name": "str:rand", "type":"[\'client\', \'partner\', '
+    ('../data/schema.json', '{"date":"timestamp:", "name": "str:rand", "type":"[\'client\', \'partner\', '
                            '\'government\']", "age": "int:rand(1, 90)"}'),
     ('{"date":"timestamp:", "name": "str:rand", "type":"[\'client\', \'partner\', \'government\']", '
      '"age": "int:rand(1, 90)"}',

@@ -8,8 +8,8 @@ from os import path, getcwd
 import pytest
 from parameterized import parameterized
 
-from console_utility import destination_path, clear_existing_files
-import console_utility
+from console_utility_main import destination_path, clear_existing_files
+import console_utility_main
 
 
 class TestFilesAndDirs(unittest.TestCase):
@@ -28,7 +28,7 @@ class TestFilesAndDirs(unittest.TestCase):
     def test_write_to_file(self, file_name, sample_output_dict):
         # Create a file in the temporary directory
         file_path = path.join(self.test_dir, file_name)
-        output = console_utility.Output(sample_output_dict)
+        output = console_utility_main.Output(sample_output_dict)
         result = output.dump_to_file(file_path)
         assert result
 
@@ -46,7 +46,7 @@ class TestFilesAndDirs(unittest.TestCase):
         assert return_path == actual
 
     @parameterized.expand([
-        ('data/schema.json', 'data/')
+        ('../data/schema.json', 'data/')
     ])
     def test_destination_path_raises(self, given_path, return_path):
         with pytest.raises(SystemExit) as exc_info:
@@ -54,7 +54,7 @@ class TestFilesAndDirs(unittest.TestCase):
         assert str(exc_info.value) == '1'
 
     @parameterized.expand([
-        ('super_data', './data/')
+        ('super_data', '../data/')
     ])
     def test_clear_files_under_destination_folder(self, file_name, destination_folder):
         dir_list_before_clearing = os.listdir(destination_folder)
